@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpiceHub | AI Ordering Assistant</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 500px;
+            height: 700px;
+            background: white;
+            border-radius: 18px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+
+        .header {
+            background: #171717;
+            color: white;
+            padding: 22px;
+        }
+
+        .restaurant-name {
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        .assistant-status {
+            margin-top: 5px;
+            font-size: 13px;
+            color: #bdbdbd;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #35c759;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        /* Chat */
+
+        .chat-box {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #fafafa;
+        }
+
+        .message {
+            display: flex;
+            margin-bottom: 15px;
+        }
+
+        .message.bot {
+            justify-content: flex-start;
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .bubble {
+            max-width: 80%;
+            padding: 12px 15px;
+            border-radius: 15px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .bot .bubble {
+            background: #eeeeee;
+            color: #222;
+            border-bottom-left-radius: 4px;
+        }
+
+        .user .bubble {
+            background: #171717;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        /* Quick buttons */
+
+        .quick-actions {
+            padding: 10px 15px;
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            background: white;
+        }
+
+        .quick-button {
+            white-space: nowrap;
+            border: 1px solid #ddd;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .quick-button:hover {
+            background: #f0f0f0;
+        }
+
+        /* Input */
+
+        .input-area {
+            display: flex;
+            padding: 15px;
+            border-top: 1px solid #eee;
+            background: white;
+            gap: 10px;
+        }
+
+        #messageInput {
+            flex: 1;
+            border: 1px solid #ddd;
+            border-radius: 22px;
+            padding: 12px 16px;
+            outline: none;
+            font-size: 14px;
+        }
+
+        #messageInput:focus {
+            border-color: #777;
+        }
+
+        #sendButton {
+            border: none;
+            background: #171717;
+            color: white;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        #sendButton:hover {
+            background: #333;
+        }
+
+        #sendButton:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
+
+        /* Typing */
+
+        .typing {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 10px;
+            display: none;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                align-items: stretch;
+            }
+
+            .chat-container {
+                height: 100vh;
+                border-radius: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="chat-container">
+
+    <!-- Header -->
+
+    <div class="header">
+        <div class="restaurant-name">
+            🍽️ SpiceHub Restaurant
+        </div>
+
+        <div class="assistant-status">
+            <span class="status-dot"></span>
+            AI Ordering Assistant
+        </div>
+    </div>
+
+
+    <!-- Chat Messages -->
+
+    <div class="chat-box" id="chatBox">
+
+        <div class="message bot">
+            <div class="bubble">
+                Hi! I'm the SpiceHub AI assistant.
+                <br><br>
+                I can help you browse our menu, check availability,
+                build your order and confirm it.
+                <br><br>
+                What would you like to do?
+            </div>
+        </div>
+
+    </div>
+
+
+    <!-- Quick Actions -->
+
+    <div class="quick-actions">
+
+        <button class="quick-button"
+                onclick="quickMessage('Show me the menu')">
+            📋 Menu
+        </button>
+
+        <button class="quick-button"
+                onclick="quickMessage('What are your popular items?')">
+            ⭐ Popular
+        </button>
+
+        <button class="quick-button"
+                onclick="quickMessage('Show my current order')">
+            🛒 My Order
+        </button>
+
+    </div>
+
+
+    <!-- Input -->
+
+    <div class="input-area">
+
+        <input
+            type="text"
+            id="messageInput"
+            placeholder="Type your message..."
+            autocomplete="off"
+        >
+
+        <button id="sendButton" onclick="sendMessage()">
+            ➤
+        </button>
+
+    </div>
+
+</div>
+
+
+<script>
+
+    /*
+     * Replace this with your n8n production webhook URL.
+     *
+     * Example:
+     *
+     * https://your-n8n-domain.com/webhook/restaurant-chat
+     */
+
+    const N8N_WEBHOOK_URL = "https://sakethvatti.app.n8n.cloud/webhook/restaurant-chat";
+
+
+    /*
+     * Create a session ID for this customer.
+     *
+     * The same session ID will be sent with every message.
+     */
+
+    let sessionId = localStorage.getItem("restaurant_session_id");
+
+    if (!sessionId) {
+
+        sessionId =
+            "session-" +
+            Date.now() +
+            "-" +
+            Math.random().toString(36).substring(2, 9);
+
+        localStorage.setItem(
+            "restaurant_session_id",
+            sessionId
+        );
+    }
+
+
+    /*
+     * Add a message to the chat window.
+     */
+
+    function addMessage(text, sender) {
+
+        const chatBox = document.getElementById("chatBox");
+
+        const message = document.createElement("div");
+
+        message.className = "message " + sender;
+
+        const bubble = document.createElement("div");
+
+        bubble.className = "bubble";
+
+        // Convert new lines to HTML line breaks
+        bubble.innerHTML = text.replace(/\n/g, "<br>");
+
+        message.appendChild(bubble);
+
+        chatBox.appendChild(message);
+
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+
+    /*
+     * Show typing indicator.
+     */
+
+    function showTyping() {
+
+        const chatBox = document.getElementById("chatBox");
+
+        const typing = document.createElement("div");
+
+        typing.className = "message bot";
+
+        typing.id = "typingIndicator";
+
+        typing.innerHTML =
+            '<div class="bubble">AI is typing...</div>';
+
+        chatBox.appendChild(typing);
+
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+
+    /*
+     * Remove typing indicator.
+     */
+
+    function hideTyping() {
+
+        const typing =
+            document.getElementById("typingIndicator");
+
+        if (typing) {
+            typing.remove();
+        }
+    }
+
+
+    /*
+     * Send message to n8n.
+     */
+
+    async function sendMessage() {
+
+        const input =
+            document.getElementById("messageInput");
+
+        const sendButton =
+            document.getElementById("sendButton");
+
+        const message =
+            input.value.trim();
+
+        if (!message) {
+            return;
+        }
+
+
+        // Display customer's message
+
+        addMessage(message, "user");
+
+        input.value = "";
+
+        sendButton.disabled = true;
+
+        showTyping();
+
+
+        try {
+
+            const response = await fetch(
+                N8N_WEBHOOK_URL,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+
+                    body: JSON.stringify({
+
+                        message: message,
+
+                        sessionId: sessionId
+
+                    })
+                }
+            );
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    "Server returned " +
+                    response.status
+                );
+
+            }
+
+
+            const data =
+                await response.text();
+
+
+            hideTyping();
+
+
+            /*
+             * n8n should return:
+             *
+             * {
+             *     "reply": "Your AI response here"
+             * }
+             */
+
+            const reply =
+                data ||
+                "Sorry, I couldn't process that request.";
+
+
+            addMessage(reply, "bot");
+
+
+        } catch (error) {
+
+            hideTyping();
+
+            console.error(error);
+
+            addMessage(
+                "Sorry, I'm having trouble connecting to the restaurant system. Please try again.",
+                "bot"
+            );
+
+        } finally {
+
+            sendButton.disabled = false;
+
+            input.focus();
+
+        }
+
+    }
+
+
+    /*
+     * Quick-action buttons.
+     */
+
+    function quickMessage(message) {
+
+        document.getElementById("messageInput").value =
+            message;
+
+        sendMessage();
+
+    }
+
+
+    /*
+     * Allow Enter key to send.
+     */
+
+    document
+        .getElementById("messageInput")
+        .addEventListener(
+            "keydown",
+            function(event) {
+
+                if (event.key === "Enter") {
+
+                    sendMessage();
+
+                }
+
+            }
+        );
+
+</script>
+
+</body>
+</html>
